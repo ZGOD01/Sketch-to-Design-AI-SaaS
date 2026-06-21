@@ -44,7 +44,6 @@ export const InfiniteCanvas = () => {
     activeGeneratedUIId,
     closeChat,
     toggleChat,
-    generateWorkflow,
     exportDesign,
   } = useGlobalChat()
 
@@ -102,7 +101,6 @@ export const InfiniteCanvas = () => {
               shape={shape}
               toggleInspiration={toggleInspiration}
               toggleChat={toggleChat}
-              generateWorkflow={generateWorkflow}
               exportDesign={exportDesign}
             />
           ))}

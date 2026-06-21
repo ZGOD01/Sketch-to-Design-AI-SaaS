@@ -12,13 +12,11 @@ export const ShapeRenderer = ({
   shape,
   toggleInspiration,
   toggleChat,
-  generateWorkflow,
   exportDesign,
 }: {
   shape: Shape;
   toggleInspiration: () => void;
   toggleChat: (generatedUIId: string) => void;
-  generateWorkflow: (generatedUIId: string) => void;
   exportDesign: (generatedUIId: string, element: HTMLElement | null) => void;
 }) => {
   switch (shape.type) {
@@ -41,7 +39,6 @@ export const ShapeRenderer = ({
         <GeneratedUI
           shape={shape}
           toggleChat={toggleChat}
-          generateWorkflow={generateWorkflow}
           exportDesign={exportDesign}
         />
       );

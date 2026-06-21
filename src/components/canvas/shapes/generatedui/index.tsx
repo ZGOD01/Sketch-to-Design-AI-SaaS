@@ -105,12 +105,10 @@ const SkeletonBlock = ({ w = "100%", h = 14, delay = 0 }: { w?: string; h?: numb
 export const GeneratedUI = ({
   shape,
   toggleChat,
-  generateWorkflow,
   exportDesign,
 }: {
   shape: GeneratedUIShape;
   toggleChat: (generatedUIId: string) => void;
-  generateWorkflow: (generatedUIId: string) => void;
   exportDesign: (generatedUIId: string, element: HTMLElement | null) => void;
 }) => {
   const { sanitizeHtml, containerRef } = useUpdateContainer(shape);

@@ -78,7 +78,7 @@
     "tailwind-merge": "^3.3.1",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
-    "zod": "^4.0.17"
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -95,6 +95,6 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x"
   }
 }

@@ -1370,6 +1370,7 @@ export const useFrame = (shape: FrameShape) => {
       downloadBlob(snapshot, `frame-${shape.frameNumber}-snapshot.png`)
       toast.success('Design saved to desktop')
     } catch (error) {
+      console.error('Failed to save design:', error)
       toast.error('Failed to save design')
     }
   }
