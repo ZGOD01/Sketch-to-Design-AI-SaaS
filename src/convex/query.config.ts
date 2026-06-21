@@ -1,4 +1,5 @@
-import { fetchMutation, preloadQuery } from "convex/nextjs";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { preloadQuery, fetchMutation } from "convex/nextjs";
 import { api } from "../../convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { Id } from "../../convex/_generated/dataModel";
@@ -10,19 +11,6 @@ export const ProfileQuery = async () => {
     {},
     { token: await convexAuthNextjsToken() }
   );
-};
-
-export const SubscriptionEntitlementQuery = async () => {
-  const rawProfile = await ProfileQuery();
-  const profile = normalizeProfile(
-    rawProfile._valueJSON as unknown as ConvexUserRaw | null
-  );
-  const entitlement = await preloadQuery(
-    api.subscription.hasEntitlement,
-    { userId: profile?.id as Id<"users"> },
-    { token: await convexAuthNextjsToken() }
-  );
-  return { entitlement, profileName: profile?.name };
 };
 
 export const ProjectsQuery = async () => {
@@ -50,7 +38,7 @@ export const ProjectQuery = async (projectId: string) => {
     rawProfile._valueJSON as unknown as ConvexUserRaw | null
   );
 
-  if (!profile?.id || !projectId) {
+  if (!profile?.id || !projectId || projectId === "null") {
     return { project: null, profile: null };
   }
 
@@ -63,49 +51,11 @@ export const ProjectQuery = async (projectId: string) => {
   return { project, profile };
 };
 
-export const ConsumeCreditsQuery = async ({ amount }: { amount?: number }) => {
-  const rawProfile = await ProfileQuery();
-  const profile = normalizeProfile(
-    rawProfile._valueJSON as unknown as ConvexUserRaw | null
-  );
-
-  if (!profile?.id) {
-    return { ok: false, balance: 0, profile: null };
-  }
-
-  const credits = await fetchMutation(
-    api.subscription.consumeCredits,
-    {
-      reason: "ai:generation",
-      userId: profile.id as Id<"users">,
-      amount: amount || 1,
-    },
-    { token: await convexAuthNextjsToken() }
-  );
-
-  return { ok: credits.ok, balance: credits.balance, profile };
-};
-
-export const CreditsBalanceQuery = async () => {
-  const rawProfile = await ProfileQuery();
-  const profile = normalizeProfile(
-    rawProfile._valueJSON as unknown as ConvexUserRaw | null
-  );
-
-  if (!profile?.id) {
-    return { ok: false, balance: 0, profile: null };
-  }
-
-  const balance = await preloadQuery(
-    api.subscription.getCreditsBalance,
-    { userId: profile.id as Id<"users"> },
-    { token: await convexAuthNextjsToken() }
-  );
-
-  return { ok: true, balance: balance._valueJSON, profile };
-};
-
 export const StyleGuideQuery = async (projectId: string) => {
+  if (!projectId || projectId === "null") {
+    return { styleGuide: null };
+  }
+
   const styleGuide = await preloadQuery(
     api.projects.getProjectStyleGuide,
     { projectId: projectId as Id<"projects"> },
@@ -116,6 +66,10 @@ export const StyleGuideQuery = async (projectId: string) => {
 };
 
 export const MoodBoardImagesQuery = async (projectId: string) => {
+  if (!projectId || projectId === "null") {
+    return { images: null };
+  }
+
   const images = await preloadQuery(
     api.moodboard.getMoodBoardImages,
     { projectId: projectId as Id<"projects"> },
@@ -126,6 +80,10 @@ export const MoodBoardImagesQuery = async (projectId: string) => {
 };
 
 export const InspirationImagesQuery = async (projectId: string) => {
+  if (!projectId || projectId === "null") {
+    return { images: null };
+  }
+
   const images = await preloadQuery(
     api.inspiration.getInspirationImages,
     { projectId: projectId as Id<"projects"> },
@@ -133,4 +91,24 @@ export const InspirationImagesQuery = async (projectId: string) => {
   );
 
   return { images };
+};
+
+export const UpdateProjectSketchesMutation = async ({
+  projectId,
+  sketchesData,
+  viewportData,
+}: {
+  projectId: string;
+  sketchesData: any;
+  viewportData?: any;
+}) => {
+  return await fetchMutation(
+    api.projects.updateProjectSketches,
+    {
+      projectId: projectId as Id<"projects">,
+      sketchesData,
+      viewportData,
+    },
+    { token: await convexAuthNextjsToken() }
+  );
 };

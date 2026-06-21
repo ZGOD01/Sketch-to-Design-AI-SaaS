@@ -7,7 +7,7 @@ import { ZoomBar } from "./zoom";
 
 export const Toolbar = () => {
   return (
-    <div className="fixed bottom-0 w-full grid grid-cols-3 z-50 p-5">
+    <div className="fixed bottom-0 w-full grid grid-cols-3 z-50 p-5 pointer-events-none">
       <HistoryPill />
       <ToolBarShapes />
       <ZoomBar />

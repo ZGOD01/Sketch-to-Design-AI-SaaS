@@ -57,6 +57,7 @@ export const InspirationSidebar = ({
 
   // Load existing images from server when component mounts or project changes
   useEffect(() => {
+    console.log("🔍 [InspirationSidebar] existingImages updated:", existingImages);
     if (existingImages && existingImages.length > 0) {
       const serverImages: Props[] = existingImages.map((img) => ({
         id: img.id,
@@ -70,10 +71,12 @@ export const InspirationSidebar = ({
       // Merge server images with any local images that aren't uploaded yet
       setImages((prev) => {
         const localImages = prev.filter((img) => !img.isFromServer);
+        console.log("🔍 [InspirationSidebar] Merging. Server images:", serverImages, "Local images:", localImages);
         return [...serverImages, ...localImages];
       });
     } else if (existingImages && existingImages.length === 0) {
       // No images on server, keep only local unuploaded images
+      console.log("🔍 [InspirationSidebar] No server images, keeping local only");
       setImages((prev) => prev.filter((img) => !img.isFromServer));
     }
   }, [existingImages]);
@@ -81,33 +84,44 @@ export const InspirationSidebar = ({
   // Upload image to Convex storage
   const uploadImage = useCallback(
     async (file: File): Promise<{ storageId: string }> => {
+      console.log("🔍 [InspirationSidebar] Starting uploadImage for file:", file.name, "type:", file.type);
       try {
         // Step 1: Generate upload URL
+        console.log("🔍 [InspirationSidebar] Step 1: Generating upload URL...");
         const uploadUrl = await generateUploadUrl();
+        console.log("🔍 [InspirationSidebar] Step 1 Success: Generated upload URL:", uploadUrl);
 
         // Step 2: Upload file to Convex storage
+        console.log("🔍 [InspirationSidebar] Step 2: POSTing file to upload URL...");
         const result = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": file.type },
           body: file,
         });
 
+        console.log("🔍 [InspirationSidebar] Step 2 Response status:", result.status, result.statusText);
         if (!result.ok) {
           throw new Error(`Upload failed: ${result.statusText}`);
         }
 
         const { storageId } = await result.json();
+        console.log("🔍 [InspirationSidebar] Step 2 Success: uploaded image, storageId:", storageId);
 
         // Step 3: Associate with project if we have a project ID
         if (projectId) {
-          await addInspirationImage({
+          console.log("🔍 [InspirationSidebar] Step 3: Associating storageId", storageId, "with projectId", projectId);
+          const associationResult = await addInspirationImage({
             projectId: projectId as Id<"projects">,
             storageId: storageId as Id<"_storage">,
           });
+          console.log("🔍 [InspirationSidebar] Step 3 Success: Associated with project. Result:", associationResult);
+        } else {
+          console.warn("🔍 [InspirationSidebar] Step 3 Skip: No projectId available to associate storageId");
         }
 
         return { storageId };
       } catch (uploadError) {
+        console.error("🔍 [InspirationSidebar] uploadImage error occurred:", uploadError);
         throw uploadError;
       }
     },
@@ -117,6 +131,7 @@ export const InspirationSidebar = ({
   // Handle file selection
   const handleFileSelect = useCallback(
     (files: FileList | null) => {
+      console.log("🔍 [InspirationSidebar] handleFileSelect triggered with files:", files);
       if (!files || files.length === 0) return;
 
       const newImages: Props[] = Array.from(files)
@@ -130,11 +145,18 @@ export const InspirationSidebar = ({
           uploading: false,
         }));
 
+      console.log("🔍 [InspirationSidebar] Filtered new images to add:", newImages);
+
       if (newImages.length > 0) {
-        setImages((prev) => [...prev, ...newImages]);
+        setImages((prev) => {
+          const updated = [...prev, ...newImages];
+          console.log("🔍 [InspirationSidebar] Adding new images to state. Total size:", updated.length);
+          return updated;
+        });
 
         // Start uploading each image
         newImages.forEach(async (image) => {
+          console.log("🔍 [InspirationSidebar] Starting upload task for temp image id:", image.id);
           // Mark as uploading
           setImages((prev) =>
             prev.map((img) =>
@@ -144,10 +166,11 @@ export const InspirationSidebar = ({
 
           try {
             const { storageId } = await uploadImage(image.file!);
+            console.log("🔍 [InspirationSidebar] Upload task completed for temp image id:", image.id, "storageId:", storageId);
 
             // Mark as uploaded
-            setImages((prev) =>
-              prev.map((img) =>
+            setImages((prev) => {
+              const updated = prev.map((img) =>
                 img.id === image.id
                   ? {
                       ...img,
@@ -157,9 +180,12 @@ export const InspirationSidebar = ({
                       isFromServer: true,
                     }
                   : img
-              )
-            );
-          } catch {
+              );
+              console.log("🔍 [InspirationSidebar] Updated state after successful upload for", image.id, "Current images state size:", updated.length);
+              return updated;
+            });
+          } catch (error) {
+            console.error("🔍 [InspirationSidebar] Upload task failed for temp image id:", image.id, error);
             setImages((prev) =>
               prev.map((img) =>
                 img.id === image.id
@@ -247,9 +273,9 @@ export const InspirationSidebar = ({
   return (
     <div
       className={cn(
-        "fixed left-5 top-1/2 transform -translate-y-1/2 w-80 backdrop-blur-xl bg-white/[0.08] border-white/[0.12] gap-2 p-3 saturate-150 border rounded-lg z-50 transition-transform duration-300"
+        "fixed left-5 top-[90px] w-80 h-[calc(100vh-220px)] max-h-[600px] backdrop-blur-xl bg-white/[0.08] border-white/[0.12] gap-2 p-3 saturate-150 border rounded-lg z-[60] transition-transform duration-300 flex flex-col"
       )}>
-      <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
+      <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-white/80" />

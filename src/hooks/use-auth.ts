@@ -47,6 +47,7 @@ export const useAuth = () => {
 
   const handleSignIn = async (data: SignInData) => {
     setIsLoading(true);
+    console.log("Attempting sign in with:", { email: data.email });
     try {
       await signIn("password", {
         email: data.email,
@@ -55,9 +56,9 @@ export const useAuth = () => {
       });
       router.push("/dashboard");
     } catch (error) {
-      console.error("Sign in error:", error);
+      console.error("Detailed sign in error:", error);
       signInForm.setError("root", {
-        message: "Invalid email or password",
+        message: error instanceof Error ? error.message : "Invalid email or password",
       });
     } finally {
       setIsLoading(false);
@@ -66,6 +67,7 @@ export const useAuth = () => {
 
   const handleSignUp = async (data: SignUpData) => {
     setIsLoading(true);
+    console.log("Attempting sign up with:", { email: data.email, name: `${data.firstName} ${data.lastName}` });
     try {
       await signIn("password", {
         email: data.email,
@@ -75,9 +77,9 @@ export const useAuth = () => {
       });
       router.push("/dashboard");
     } catch (error) {
-      console.error("Sign up error:", error);
+      console.error("Detailed sign up error:", error);
       signUpForm.setError("root", {
-        message: "Failed to create account. Email may already exist.",
+        message: error instanceof Error ? error.message : "Failed to create account. Email may already exist.",
       });
     } finally {
       setIsLoading(false);

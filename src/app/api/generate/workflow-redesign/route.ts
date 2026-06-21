@@ -1,16 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { prompts } from "@/prompts";
-import {
-  ConsumeCreditsQuery,
-  CreditsBalanceQuery,
-  StyleGuideQuery,
-} from "@/convex/query.config";
+import { getAIModel } from "@/lib/ai-provider";
+import { StyleGuideQuery } from "@/convex/query.config";
 
 export async function POST(request: NextRequest) {
-  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY! });
   try {
     const body = await request.json();
     const { userMessage, generatedUIId, currentHTML, projectId } = body;
@@ -25,30 +20,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check credits
-    const { ok: balanceOk, balance: balanceBalance } =
-      await CreditsBalanceQuery();
-    if (!balanceOk || balanceBalance === 0) {
-      return NextResponse.json(
-        { error: "No credits available" },
-        { status: 400 }
-      );
-    }
-
-    // Consume credits
-    const { ok } = await ConsumeCreditsQuery({ amount: 4 });
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Failed to consume credits" },
-        { status: 500 }
-      );
-    }
-
     const styleGuide = await StyleGuideQuery(projectId);
-    const styleGuideData = styleGuide.styleGuide._valueJSON as unknown as {
+    const styleGuideData = styleGuide?.styleGuide?._valueJSON as unknown as {
       colorSections: unknown[];
       typographySections: unknown[];
     };
+    const colorSections = styleGuideData?.colorSections || [];
+    const typographySections = styleGuideData?.typographySections || [];
 
     const userPrompt = `CRITICAL: You are redesigning a SPECIFIC WORKFLOW PAGE, not creating a new page from scratch.
 
@@ -71,7 +49,7 @@ MODIFICATION GUIDELINES:
 4. Maintain component patterns and classes
 5. Preserve responsive design and accessibility features
 
-Colors: ${styleGuideData.colorSections
+Colors: ${colorSections
       .map((color: any) =>
         color.swatches
           .map((swatch: any) => {
@@ -80,7 +58,7 @@ Colors: ${styleGuideData.colorSections
           .join(", ")
       )
       .join(", ")}
-Typography: ${styleGuideData.typographySections
+Typography: ${typographySections
       .map((typography: any) =>
         typography.styles
           .map((style: any) => {
@@ -93,7 +71,7 @@ Typography: ${styleGuideData.typographySections
 Return ONLY the complete HTML – no markdown fences, no explanations. Begin now:`;
 
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: getAIModel() as any,
       messages: [
         {
           role: "user",

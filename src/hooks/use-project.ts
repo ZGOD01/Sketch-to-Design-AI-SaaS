@@ -4,12 +4,14 @@
 import { useAppSelector, useAppDispatch } from '@/redux/store'
 import {
   addProject,
+  removeProject,
+  updateProject,
   createProjectStart,
   createProjectSuccess,
   createProjectFailure,
 } from '@/redux/slice/projects'
 import { toast } from 'sonner'
-import { fetchMutation } from 'convex/nextjs'
+import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 
@@ -50,6 +52,10 @@ export const useProjectCreation = () => {
   const shapesState = useAppSelector((state) => state.shapes.present)
   const projectsState = useAppSelector((state) => state.projects)
 
+  const convexCreateProject = useMutation(api.projects.createProject)
+  const convexDeleteProject = useMutation(api.projects.deleteProject)
+  const convexRenameProject = useMutation(api.projects.renameProject)
+
   const createProject = async (name?: string) => {
     if (!user?.id) {
       toast.error('Please sign in to create projects')
@@ -62,8 +68,8 @@ export const useProjectCreation = () => {
       // Generate thumbnail
       const thumbnail = generateGradientThumbnail()
 
-      // Create project directly in Convex
-      const result = await fetchMutation(api.projects.createProject, {
+      // Create project directly in Convex using client-side useMutation
+      const result = await convexCreateProject({
         userId: user.id as Id<'users'>,
         name: name || undefined,
         sketchesData: {
@@ -90,14 +96,60 @@ export const useProjectCreation = () => {
 
       dispatch(createProjectSuccess())
       toast.success('Project created successfully!')
-    } catch {
+    } catch (error) {
+      console.error('Create project error:', error)
       dispatch(createProjectFailure('Failed to create project'))
       toast.error('Failed to create project')
     }
   }
 
+  const deleteProject = async (projectId: string) => {
+    if (!user?.id) {
+      toast.error('Please sign in to delete projects')
+      return
+    }
+
+    try {
+      // Delete project using client-side useMutation to pass the auth token
+      await convexDeleteProject({
+        projectId: projectId as Id<'projects'>,
+      })
+      dispatch(removeProject(projectId))
+      toast.success('Project deleted successfully!')
+    } catch (error) {
+      console.error('Delete project error:', error)
+      toast.error('Failed to delete project')
+    }
+  }
+
+  const renameProject = async (projectId: string, newName: string) => {
+    if (!user?.id) {
+      toast.error('Please sign in to rename projects')
+      return
+    }
+
+    if (!newName.trim()) {
+      toast.error('Project name cannot be empty')
+      return
+    }
+
+    try {
+      await convexRenameProject({
+        projectId: projectId as Id<'projects'>,
+        name: newName.trim(),
+      })
+      dispatch(updateProject({ _id: projectId, name: newName.trim() }))
+      toast.success('Project renamed successfully!')
+    } catch (error) {
+      console.error('Rename project error:', error)
+      toast.error('Failed to rename project')
+    }
+  }
+
   return {
     createProject,
+    deleteProject,
+    renameProject,
     isCreating: projectsState.isCreating,
     projects: projectsState.projects,
     projectsTotal: projectsState.total,

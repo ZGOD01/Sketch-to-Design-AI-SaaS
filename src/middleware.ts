@@ -21,9 +21,8 @@ export default convexAuthNextjsMiddleware(
 
     console.log(authed);
 
-    if (PublicMatcher(request) && authed) {
-      return nextjsMiddlewareRedirect(request, `/dashboard`);
-    }
+    // No auto-redirect to dashboard for authenticated users on public routes
+    // This allows them to see the landing page even if logged in.
 
     if (ProtectedMatcher(request) && !authed) {
       return nextjsMiddlewareRedirect(request, `/auth/sign-in`);

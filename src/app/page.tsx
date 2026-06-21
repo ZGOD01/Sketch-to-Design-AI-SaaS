@@ -16,7 +16,7 @@ import {
   MessageSquare,
   Download,
   Palette,
-  Infinity,
+  Infinity as InfinityIcon,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
@@ -327,7 +327,7 @@ const Page = () => {
             <Code2 className="h-5 w-5 text-white" strokeWidth={2} />
           </div>
           <span className="text-xl font-bold tracking-tight">
-            S2C
+            Sketch to Design
           </span>
         </div>
 
@@ -431,7 +431,7 @@ const Page = () => {
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
-            icon={Infinity}
+            icon={InfinityIcon}
             title="Infinite Canvas"
             description="Pan, zoom, and sketch without limits. Your workspace grows with your ideas — never constrained by page boundaries."
             gradient="bg-gradient-to-br from-violet-500/20 to-violet-600/5"
@@ -556,10 +556,10 @@ const Page = () => {
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-cyan-500">
               <Code2 className="h-4 w-4 text-white" strokeWidth={2} />
             </div>
-            <span className="text-sm font-semibold">S2C</span>
+            <span className="text-sm font-semibold">Sketch to Design</span>
           </div>
           <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} S2C — Sketch to Code. All rights reserved.
+            &copy; {new Date().getFullYear()} Sketch to Design — Sketch to Code. All rights reserved.
           </p>
         </div>
       </footer>

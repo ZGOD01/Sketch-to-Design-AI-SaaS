@@ -221,6 +221,9 @@ Use Tailwind v4 for everything EXCEPT colors
 Apply colors ONLY via custom .c-* classes
 Never use: bg-blue-500, text-gray-800, bg-[#...]
 Never use viewport units: vh, vw, h-screen, min-h-screen
+BLACK & WHITE / MONOCHROME DESIGN ENFORCEMENT: If the provided Style Guide theme/description is "Black & White", "Monochrome", or "Grayscale" (or if colorSections consists primarily of shades of white, black, grey, neutral, transparent, charcoal, and similar gray values without any strong chroma or saturation colors), you MUST:
+- Enforce a strict black & white color design. Never introduce any colored highlights, backgrounds, buttons, text, or accents.
+- All generated illustrations, photos, and placeholder images (e.g. from Picsum or Unsplash) MUST be grayscaled. You MUST apply a standard CSS filter "filter: grayscale(100%)" or use Tailwind's "grayscale" class to ensure they are rendered strictly in black and white.
 
 MANDATORY Spacing System (NEVER DEVIATE):
 

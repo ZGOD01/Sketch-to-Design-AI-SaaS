@@ -1,10 +1,15 @@
 import { TextShape } from "@/redux/slice/shapes";
 import { useDispatch } from "react-redux";
+import { useAppSelector } from "@/redux/store";
 import { updateShape, removeShape } from "@/redux/slice/shapes";
 import { useState, useRef, useEffect } from "react";
 
 export const Text = ({ shape }: { shape: TextShape }) => {
   const dispatch = useDispatch();
+  const isSelected = useAppSelector((state) => state.shapes.present.selected[shape.id]);
+  const currentTool = useAppSelector((state) => state.shapes.present.tool);
+  const isSelectMode = currentTool === "select";
+
   const [isEditing, setIsEditing] = useState(shape.text === "Type here...");
   const [tempText, setTempText] = useState(shape.text);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -115,7 +120,13 @@ export const Text = ({ shape }: { shape: TextShape }) => {
       onDoubleClick={handleDoubleClick}
       title="Double-click to edit">
       <span
-        className="pointer-events-auto canvas-shape"
+        className={`pointer-events-auto canvas-shape rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 transition-all ${
+          isSelectMode
+            ? isSelected
+              ? "outline outline-dashed outline-2 outline-blue-500 bg-blue-500/15"
+              : "hover:outline hover:outline-dashed hover:outline-1 hover:outline-blue-400/60 cursor-pointer"
+            : ""
+        }`}
         style={{ display: "block", minWidth: "20px", minHeight: "1em" }}>
         {shape.text}
       </span>

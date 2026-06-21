@@ -1,17 +1,18 @@
-import { SubscriptionEntitlementQuery } from "@/convex/query.config";
+import { ProfileQuery } from "@/convex/query.config";
 import { redirect } from "next/navigation";
 import { combinedSlug } from "@/lib/utils";
+import { ConvexUserRaw, normalizeProfile } from "@/types/user";
 
 export const dynamic = "force-dynamic";
 
 const Page = async () => {
-  const { entitlement, profileName } = await SubscriptionEntitlementQuery();
-  console.log(entitlement);
-  // if (!entitlement._valueJSON) {
-  //   redirect(`/billing/${combinedSlug(profileName!)}`);
-  // }
+  const rawProfile = await ProfileQuery();
+  const profile = normalizeProfile(
+    rawProfile._valueJSON as unknown as ConvexUserRaw | null
+  );
 
-  redirect(`/dashboard/${combinedSlug(profileName!)}`);
+  const profileName = profile?.name || "user";
+  redirect(`/dashboard/${combinedSlug(profileName)}`);
 };
 
 export default Page;

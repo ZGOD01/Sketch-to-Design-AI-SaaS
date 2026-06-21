@@ -69,7 +69,7 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
       const { storageId } = await result.json()
 
       // Step 3: Associate with project if we have a project ID
-      if (projectId) {
+      if (projectId && projectId !== "null") {
         await addMoodBoardImage({
           projectId: projectId as Id<'projects'>,
           storageId: storageId as Id<'_storage'>,
@@ -154,7 +154,7 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
     if (!imageToRemove) return
 
     // If it's a server image with storageId, remove from Convex
-    if (imageToRemove.isFromServer && imageToRemove.storageId && projectId) {
+    if (imageToRemove.isFromServer && imageToRemove.storageId && projectId && projectId !== "null") {
       try {
         await removeMoodBoardImage({
           projectId: projectId as Id<'projects'>,
@@ -322,7 +322,7 @@ export const useStyleGuide = (
   const handleUploadClick = () => fileInputRef.current?.click()
 
   const handleGenerateStyleGuide = async () => {
-    if (!projectId) {
+    if (!projectId || projectId === "null") {
       toast.error('No project selected')
       return
     }
@@ -399,6 +399,47 @@ export const useUpdateContainer = (shape: GeneratedUIShape) => {
       return () => clearTimeout(timeoutId)
     }
   }, [shape.uiSpecData, shape.id, shape.h, dispatch])
+
+  // 🖱️ CLICK HIGHLIGHT HANDLER - Highlight clicked elements inside the generated UI
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+
+      // Don't intercept clicks on the canvas action buttons (Export, Design Chat)
+      if (target.closest('button')?.textContent?.includes('Export') || 
+          target.closest('button')?.textContent?.includes('Design Chat')) {
+        return
+      }
+
+      // Find the clicked text/layout element
+      const interactiveEl = target.closest<HTMLElement>(
+        'h1, h2, h3, h4, h5, h6, p, span, a, button, input, label, img, li'
+      ) || target
+
+      if (interactiveEl && container.contains(interactiveEl)) {
+        event.stopPropagation()
+
+        // Clear previous highlights
+        const prev = container.querySelector<HTMLElement>('.selected-ui-element')
+        if (prev) {
+          prev.classList.remove('outline', 'outline-2', 'outline-blue-500', 'outline-offset-2', 'selected-ui-element')
+        }
+
+        // Highlight clicked element
+        interactiveEl.classList.add('outline', 'outline-2', 'outline-blue-500', 'outline-offset-2', 'selected-ui-element')
+        console.log('🎯 Element clicked:', interactiveEl.tagName, interactiveEl.textContent?.trim().slice(0, 30))
+      }
+    }
+
+    container.addEventListener('click', handleClick)
+    return () => {
+      container.removeEventListener('click', handleClick)
+    }
+  }, [shape.uiSpecData, shape.id])
 
   // Enhanced HTML sanitization function for basic safety
   const sanitizeHtml = (html: string) => {

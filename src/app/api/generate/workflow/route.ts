@@ -1,22 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { streamText } from 'ai'
-import { getEnv } from '@/lib/get-env'
-
 import { prompts } from '@/prompts'
 import {
-  ConsumeCreditsQuery,
-  CreditsBalanceQuery,
   StyleGuideQuery,
   InspirationImagesQuery,
 } from '@/convex/query.config'
+import { getAIModel } from '@/lib/ai-provider'
 
 export async function POST(request: NextRequest) {
-  const google = createGoogleGenerativeAI({ apiKey: getEnv('GEMINI_API_KEY') })
   try {
     const body = await request.json()
     const { generatedUIId, currentHTML, projectId, pageIndex } = body
+    console.log("DEBUG: /api/generate/workflow request body:", { generatedUIId, currentHTMLExists: !!currentHTML, projectId, pageIndex });
 
     if (
       !generatedUIId ||
@@ -24,6 +20,7 @@ export async function POST(request: NextRequest) {
       !projectId ||
       pageIndex === undefined
     ) {
+      console.log("DEBUG: /api/generate/workflow missing required fields");
       return NextResponse.json(
         {
           error:
@@ -33,38 +30,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check credits (workflow generation consumes 1 credit)
-    const { ok: balanceOk, balance: balanceBalance } =
-      await CreditsBalanceQuery()
-    if (!balanceOk || balanceBalance === 0) {
-      return NextResponse.json(
-        { error: 'No credits available' },
-        { status: 400 }
-      )
-    }
-
-    // Consume credits
-    const { ok } = await ConsumeCreditsQuery({ amount: 1 })
-    if (!ok) {
-      return NextResponse.json(
-        { error: 'Failed to consume credits' },
-        { status: 500 }
-      )
-    }
-
     // Get style guide
     const styleGuide = await StyleGuideQuery(projectId)
-    const styleGuideData = styleGuide.styleGuide._valueJSON as unknown as {
+    const styleGuideData = styleGuide?.styleGuide?._valueJSON as unknown as {
       colorSections: unknown[]
       typographySections: unknown[]
     }
 
     // Get inspiration images
     const inspirationResult = await InspirationImagesQuery(projectId)
-    const images = inspirationResult.images._valueJSON as unknown as {
+    const images = (inspirationResult?.images?._valueJSON || []) as unknown as {
       url: string
     }[]
-    const imageUrls = images.map((img) => img.url).filter(Boolean)
+    const imageUrls = images.map((img) => img.url).filter((url): url is string => !!url)
 
     const colors = styleGuideData?.colorSections || []
     const typography = styleGuideData?.typographySections || []
@@ -153,7 +131,7 @@ REQUIREMENTS:
     }
 
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: getAIModel() as any,
       messages: [{ role: 'user', content: contentParts }],
       system: prompts.generativeUi.system,
       temperature: 0.7,

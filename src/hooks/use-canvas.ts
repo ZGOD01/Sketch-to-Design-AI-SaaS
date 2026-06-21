@@ -779,6 +779,12 @@ export const useInfiniteCanvas = () => {
   // ⌨️ ON KEY DOWN - Handle keyboard shortcuts
   // This manages keyboard shortcuts like Shift for panning
   const onKeyDown = (e: KeyboardEvent): void => {
+    // Skip canvas shortcuts when user is typing in an input/textarea
+    const tag = (e.target as HTMLElement)?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) {
+      return
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
       e.preventDefault()
       dispatch(selectAll())
@@ -1684,9 +1690,9 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
   // 📊 GET CHAT STATE - Get chat state for this specific GeneratedUI
   const chatState = useAppSelector((state) => state.chat.chats[generatedUIId])
   const currentShape = useAppSelector(
-    (state) => state.shapes.shapes.entities[generatedUIId]
+    (state) => state.shapes.present.shapes.entities[generatedUIId]
   )
-  const allShapes = useAppSelector((state) => state.shapes.shapes.entities)
+  const allShapes = useAppSelector((state) => state.shapes.present.shapes.entities)
 
   // 🎯 GET SOURCE FRAME - Find the original frame that this GeneratedUI was created from
   // This is needed for main page redesigns to include wireframe context
@@ -1731,10 +1737,28 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
 
   // 💬 SEND MESSAGE - Handle sending messages and regenerating designs
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || chatState?.isStreaming) return
+    console.log('💬 handleSendMessage called', {
+      inputValue: inputValue.trim(),
+      isStreaming: chatState?.isStreaming,
+      generatedUIId,
+    })
+
+    if (!inputValue.trim()) {
+      console.warn('💬 Message empty, not sending')
+      return
+    }
+
+    // Guard against stuck streaming state — if streaming for too long, force reset
+    if (chatState?.isStreaming) {
+      console.warn('💬 Chat is currently streaming, not sending')
+      return
+    }
 
     const message = inputValue.trim()
     setInputValue('')
+
+    // Ensure chat is initialized before dispatching messages
+    dispatch(initializeChat(generatedUIId))
 
     try {
       // Add user message to chat
@@ -1757,12 +1781,6 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
           ? currentShape.uiSpecData?.length
           : 'N/A'
       )
-      console.log(
-        '🔍 Chat Debug - HTML preview:',
-        currentShape?.type === 'generatedui'
-          ? currentShape.uiSpecData?.substring(0, 100)
-          : 'N/A'
-      )
 
       // Get current project ID from URL
       const urlParams = new URLSearchParams(window.location.search)
@@ -1777,7 +1795,7 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
         generatedUIId: generatedUIId,
         currentHTML:
           currentShape?.type === 'generatedui' ? currentShape.uiSpecData : null,
-        projectId: projectId, // Pass projectId in body
+        projectId: projectId,
       }
 
       let apiEndpoint = '/api/generate/redesign' // Default to main page redesign
@@ -1801,12 +1819,14 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
               allShapesArray
             )
 
-            // Convert blob to base64 for transmission (same format as original generation)
-            const arrayBuffer = await snapshot.arrayBuffer()
-            const base64 = btoa(
-              String.fromCharCode(...new Uint8Array(arrayBuffer))
-            )
-            wireframeSnapshot = base64 // Send raw base64, not data URI
+            // Convert blob to base64 safely using FileReader (avoids stack overflow)
+            const base64Url = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.onerror = reject
+              reader.readAsDataURL(snapshot)
+            })
+            wireframeSnapshot = base64Url.split(',')[1] // Get raw base64
           } catch (error) {
             console.warn(
               '⚠️ Failed to capture source wireframe snapshot:',
@@ -1824,6 +1844,8 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
         ? baseRequestData
         : { ...baseRequestData, wireframeSnapshot }
 
+      console.log('📡 Sending chat request to:', apiEndpoint)
+
       // Use fetch for streaming since RTK Query doesn't handle it well
       const response = await fetch(apiEndpoint, {
         method: 'POST',
@@ -1832,7 +1854,16 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
       })
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`)
+        // Try to read the error body for better error messages
+        let errorDetail = `${response.status} ${response.statusText}`
+        try {
+          const errorBody = await response.text()
+          const parsed = JSON.parse(errorBody)
+          errorDetail = parsed.error || parsed.details || errorDetail
+        } catch {
+          // Use the status text as-is
+        }
+        throw new Error(`API request failed: ${errorDetail}`)
       }
 
       // Handle streaming response
@@ -1841,42 +1872,56 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
       let accumulatedHTML = ''
 
       if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
 
-          const chunk = decoder.decode(value)
-          accumulatedHTML += chunk
+            const chunk = decoder.decode(value, { stream: true })
+            accumulatedHTML += chunk
 
-          // Update streaming message with "Regenerating design..."
-          dispatch(
-            updateStreamingContent({
-              generatedUIId,
-              messageId: responseId,
-              content: 'Regenerating your design...',
-            })
-          )
+            // Update streaming message with "Regenerating design..."
+            dispatch(
+              updateStreamingContent({
+                generatedUIId,
+                messageId: responseId,
+                content: 'Regenerating your design...',
+              })
+            )
 
-          // Update the GeneratedUI shape with new HTML in real-time
-          dispatch(
-            updateShape({
-              id: generatedUIId,
-              patch: { uiSpecData: accumulatedHTML },
-            })
-          )
+            // Clean markdown fences from streamed HTML in real-time
+            let cleanedHTML = accumulatedHTML.trim();
+            cleanedHTML = cleanedHTML.replace(/^```(?:html|HTML)?\s*\n?/, "");
+            cleanedHTML = cleanedHTML.replace(/\n?```\s*$/, "");
+            cleanedHTML = cleanedHTML.trim();
+
+            // Update the GeneratedUI shape with new HTML in real-time
+            dispatch(
+              updateShape({
+                id: generatedUIId,
+                patch: { uiSpecData: cleanedHTML },
+              })
+            );
+          }
+        } finally {
+          reader.releaseLock()
         }
       }
+
+      console.log('✅ Chat redesign complete, HTML length:', accumulatedHTML.length)
 
       // Finish streaming
       dispatch(
         finishStreamingResponse({
           generatedUIId,
           messageId: responseId,
-          finalContent: '✨ Design regenerated successfully!',
+          finalContent: accumulatedHTML.length > 50
+            ? '✨ Design regenerated successfully!'
+            : '⚠️ AI returned a short response. Try rephrasing your request.',
         })
       )
     } catch (error) {
-      console.error('Chat error:', error)
+      console.error('❌ Chat error:', error)
       dispatch(
         addErrorMessage({
           generatedUIId,
@@ -1889,6 +1934,8 @@ export const useChatWindow = (generatedUIId: string, isOpen: boolean) => {
 
   // ⌨️ KEYBOARD HANDLING - Handle Enter key to send messages
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    // Stop propagation to prevent canvas keyboard shortcuts from interfering
+    e.stopPropagation()
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()

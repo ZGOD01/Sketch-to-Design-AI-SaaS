@@ -1,17 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { prompts } from "@/prompts";
+import { getAIModel } from "@/lib/ai-provider";
 import {
-  ConsumeCreditsQuery,
-  CreditsBalanceQuery,
   StyleGuideQuery,
   InspirationImagesQuery,
 } from "@/convex/query.config";
 
+async function fetchImageAsUint8Array(url: string): Promise<{ data: Uint8Array; mimeType: string } | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.warn(`[fetchImageAsUint8Array] Failed to fetch: ${res.status} ${res.statusText}`)
+      return null
+    }
+    const contentType = res.headers.get('content-type') || 'image/png'
+    const buffer = await res.arrayBuffer()
+    return {
+      data: new Uint8Array(buffer),
+      mimeType: contentType,
+    }
+  } catch (error) {
+    console.error(`[fetchImageAsUint8Array] Error fetching ${url}:`, error)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
-  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY! });
   try {
     const body = await request.json();
     const {
@@ -32,38 +48,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check credits
-    const { ok: balanceOk, balance: balanceBalance } =
-      await CreditsBalanceQuery();
-    if (!balanceOk || balanceBalance === 0) {
-      return NextResponse.json(
-        { error: "No credits available" },
-        { status: 400 }
-      );
-    }
-
-    // Consume credits
-    const { ok } = await ConsumeCreditsQuery({ amount: 1 });
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Failed to consume credits" },
-        { status: 500 }
-      );
-    }
-
     // Get style guide
     const styleGuide = await StyleGuideQuery(projectId);
-    const styleGuideData = styleGuide.styleGuide._valueJSON as unknown as {
+    const styleGuideData = styleGuide?.styleGuide?._valueJSON as unknown as {
       colorSections: unknown[];
       typographySections: unknown[];
     };
 
     // Get inspiration images
     const inspirationResult = await InspirationImagesQuery(projectId);
-    const images = inspirationResult.images._valueJSON as unknown as {
+    const images = (inspirationResult?.images?._valueJSON || []) as unknown as {
       url: string;
     }[];
-    const imageUrls = images.map((img) => img.url).filter(Boolean);
+    const imageUrls = images.map((img) => img.url).filter((url): url is string => !!url);
 
     const colors = styleGuideData?.colorSections || [];
     const typography = styleGuideData?.typographySections || [];
@@ -123,6 +120,14 @@ export async function POST(request: NextRequest) {
         .join(", ")}`;
     }
 
+    if (imageUrls.length > 0) {
+      userPrompt += `\n\nINSPIRATION SOURCES:\nWe have attached some inspiration images as additional visual inputs. You MUST extract the design aesthetic (including color palettes, gradients, light/dark modes, background styles, borders, textures, button styling, fonts, and general UI/UX styling) from these inspiration images and apply/incorporate it in the redesigned UI.`;
+    }
+
+    userPrompt += `\n\nATTACHMENT ROLES:
+- The first attached image is the wireframe/current snapshot (use it for visual context of the layout).
+- Any additional attached images are style/theme inspiration images. You MUST redesign the UI's aesthetic to match the inspiration images.`;
+
     userPrompt += `\n\nReturn ONLY the complete HTML – no markdown fences, no explanations, no code blocks. Begin now:`;
 
     // Build content parts – handle wireframe snapshot (base64 string → Uint8Array)
@@ -130,7 +135,6 @@ export async function POST(request: NextRequest) {
 
     if (wireframeSnapshot) {
       try {
-        // wireframeSnapshot may be "data:image/png;base64,..." or raw base64
         const base64Data = wireframeSnapshot.includes(",")
           ? wireframeSnapshot.split(",")[1]
           : wireframeSnapshot;
@@ -145,17 +149,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Add inspiration images
+    // Fetch and add inspiration images as binary content parts
     for (const url of imageUrls.slice(0, 2)) {
       try {
-        contentParts.push({ type: "image", image: new URL(url) });
-      } catch {
-        // Skip invalid URLs
+        console.log(`[redesign] Fetching inspiration image for Gemini: ${url}`)
+        const fetched = await fetchImageAsUint8Array(url)
+        if (fetched) {
+          contentParts.push({
+            type: "image",
+            image: fetched.data,
+            mimeType: fetched.mimeType,
+          })
+          console.log(`[redesign] Added inspiration image to contentParts. Type: ${fetched.mimeType}`)
+        }
+      } catch (err) {
+        console.error(`[redesign] Failed to load inspiration image: ${url}`, err)
       }
     }
 
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: getAIModel() as any,
       messages: [{ role: "user", content: contentParts }],
       system: prompts.generativeUi.system,
       temperature: 0.7,

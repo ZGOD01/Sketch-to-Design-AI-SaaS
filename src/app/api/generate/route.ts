@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { streamText } from 'ai'
 import { prompts } from '@/prompts'
+import { getAIModel } from '@/lib/ai-provider'
 
 /**
  * Strip markdown code fences that Gemini sometimes wraps around HTML output.
@@ -22,11 +22,26 @@ import {
   InspirationImagesQuery,
   StyleGuideQuery,
 } from '@/convex/query.config'
-import { getEnv } from '@/lib/get-env'
+async function fetchImageAsUint8Array(url: string): Promise<{ data: Uint8Array; mimeType: string } | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.warn(`[fetchImageAsUint8Array] Failed to fetch: ${res.status} ${res.statusText}`)
+      return null
+    }
+    const contentType = res.headers.get('content-type') || 'image/png'
+    const buffer = await res.arrayBuffer()
+    return {
+      data: new Uint8Array(buffer),
+      mimeType: contentType,
+    }
+  } catch (error) {
+    console.error(`[fetchImageAsUint8Array] Error fetching ${url}:`, error)
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
-  const google = createGoogleGenerativeAI({ apiKey: getEnv('GEMINI_API_KEY') })
-
   try {
     const formData = await request.formData()
     const imageFile = formData.get('image') as File
@@ -106,7 +121,8 @@ STYLE GUIDE:
 Colors: ${colorStr || 'Modern dark theme with white text and purple accents (#7c3aed, #8b5cf6)'}
 Typography: ${typographyStr || 'Inter, sans-serif; headings bold 600-700, body regular 400'}
 
-INSPIRATION: ${imageUrls.length > 0 ? imageUrls.join(', ') : 'Use placeholder images from https://picsum.photos'}
+INSPIRATION SOURCES:
+We have attached some inspiration images as additional visual inputs. You MUST extract the design aesthetic (including color palettes, gradients, light/dark modes, background styles, borders, textures, button styling, fonts, and general UI/UX styling) from these inspiration images and implement it in the generated UI. For example, if there is a pink gradient inspiration image, you MUST style the generated UI using a pink gradient theme.
 
 ABSOLUTE RULES — YOU MUST FOLLOW THESE:
 1. You MUST generate complete HTML. No exceptions. Even if the wireframe is rough or unclear.
@@ -124,7 +140,9 @@ ABSOLUTE RULES — YOU MUST FOLLOW THESE:
 8. Make it BEAUTIFUL — premium design, gradients, shadows, hover effects
 9. Use https://picsum.photos/[width]/[height] for image placeholders
 
-An image of the wireframe is also attached — use it for additional visual context, but prioritize the text description above for layout accuracy.
+ATTACHMENT ROLES:
+- The first attached image is the wireframe (use it for visual context of the layout).
+- Any additional attached images are style/theme inspiration images. You MUST design the UI's aesthetic to match the inspiration images.
 
 BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
 
@@ -141,25 +159,31 @@ BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
       },
     ]
 
-    // Add inspiration image URLs
+    // Fetch and add inspiration images as binary content parts
     for (const url of imageUrls.slice(0, 2)) {
       try {
-        contentParts.push({
-          type: 'image',
-          image: new URL(url),
-        })
-      } catch {
-        // Skip invalid URLs
+        console.log(`[generate] Fetching inspiration image for Gemini: ${url}`)
+        const fetched = await fetchImageAsUint8Array(url)
+        if (fetched) {
+          contentParts.push({
+            type: 'image',
+            image: fetched.data,
+            mimeType: fetched.mimeType,
+          })
+          console.log(`[generate] Added inspiration image to contentParts. Type: ${fetched.mimeType}`)
+        }
+      } catch (err) {
+        console.error(`[generate] Failed to load inspiration image: ${url}`, err)
       }
     }
 
-    // ── Stream from Gemini ──
-    console.log('[generate] Starting Gemini streamText with model: gemini-2.5-flash')
-    console.log('[generate] API key present:', !!getEnv('GEMINI_API_KEY'))
-    console.log('[generate] Shape description length:', shapeDescription.length)
+    const provider = (process.env.AI_PROVIDER || 'google').toLowerCase()
+    const isGoogle = provider === 'google'
 
+    // ── Stream from AI model ──
+    console.log(`[generate] Starting streamText with provider: ${provider}`)
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: getAIModel() as any,
       messages: [
         {
           role: 'user',
@@ -169,24 +193,24 @@ BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
       system: systemPrompt,
       temperature: 0.4,
       maxOutputTokens: 65536,
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            thinkingBudget: 2048,
+      ...(isGoogle ? {
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              thinkingBudget: 2048,
+            },
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            ],
           },
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          ],
         },
-      },
+      } : {}),
     })
 
     // ── Convert AI text stream → ReadableStream for the browser ──
-    // We accumulate the full response first so we can strip code fences,
-    // then send it as a single response to the browser.
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
@@ -196,7 +220,7 @@ BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
             fullText += chunk
           }
 
-          // Strip markdown code fences that Gemini might have wrapped
+          // Strip markdown code fences that AI might have wrapped
           const cleaned = stripCodeFences(fullText)
           console.log('[generate] Response received, length:', fullText.length, '→ cleaned:', cleaned.length)
 
@@ -208,9 +232,6 @@ BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
           controller.close()
         } catch (streamError) {
           console.error('[generate] Stream error:', streamError)
-          // Send an error message as HTML so the client can display it
-          const errMsg = streamError instanceof Error ? streamError.message : 'Unknown streaming error'
-          console.error('[generate] Full error details:', JSON.stringify(streamError, null, 2))
           controller.error(streamError)
         }
       },
@@ -221,7 +242,7 @@ BEGIN HTML OUTPUT NOW (start with <div data-generated-ui>):`
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
-        'X-Generation-Model': 'gemini-2.5-flash',
+        'X-Generation-Model': provider,
       },
     })
   } catch (error) {

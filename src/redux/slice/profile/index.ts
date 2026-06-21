@@ -1,18 +1,18 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type { Profile } from "@/types/user";
 
-type ProfileState = { user: Profile | null };
-const initialState: ProfileState = { user: null };
+type ProfileState = Profile | null;
+const initialState: ProfileState = null;
 
 const slice = createSlice({
   name: "profile",
-  initialState,
+  initialState: initialState as ProfileState,
   reducers: {
     setProfile(state, action: PayloadAction<Profile | null>) {
-      state.user = action.payload;
+      return action.payload;
     },
     clearProfile(state) {
-      state.user = null;
+      return null;
     },
   },
 });

@@ -49,8 +49,16 @@ const chatSlice = createSlice({
       }>
     ) => {
       const { generatedUIId, content } = action.payload;
+      if (!state.chats[generatedUIId]) {
+        state.chats[generatedUIId] = {
+          generatedUIId,
+          messages: [],
+          isStreaming: false,
+          streamingMessageId: null,
+        };
+      }
+      
       const chat = state.chats[generatedUIId];
-
       if (chat) {
         chat.messages.push({
           id: `user-${Date.now()}`,
@@ -70,8 +78,16 @@ const chatSlice = createSlice({
       }>
     ) => {
       const { generatedUIId, messageId } = action.payload;
+      if (!state.chats[generatedUIId]) {
+        state.chats[generatedUIId] = {
+          generatedUIId,
+          messages: [],
+          isStreaming: false,
+          streamingMessageId: null,
+        };
+      }
+      
       const chat = state.chats[generatedUIId];
-
       if (chat) {
         chat.isStreaming = true;
         chat.streamingMessageId = messageId;
@@ -97,8 +113,9 @@ const chatSlice = createSlice({
       }>
     ) => {
       const { generatedUIId, messageId, content } = action.payload;
+      if (!state.chats[generatedUIId]) return;
+      
       const chat = state.chats[generatedUIId];
-
       if (chat) {
         const messageIndex = chat.messages.findIndex(
           (msg) => msg.id === messageId
@@ -119,8 +136,9 @@ const chatSlice = createSlice({
       }>
     ) => {
       const { generatedUIId, messageId, finalContent } = action.payload;
+      if (!state.chats[generatedUIId]) return;
+      
       const chat = state.chats[generatedUIId];
-
       if (chat) {
         chat.isStreaming = false;
         chat.streamingMessageId = null;
@@ -144,8 +162,16 @@ const chatSlice = createSlice({
       }>
     ) => {
       const { generatedUIId, error } = action.payload;
+      if (!state.chats[generatedUIId]) {
+        state.chats[generatedUIId] = {
+          generatedUIId,
+          messages: [],
+          isStreaming: false,
+          streamingMessageId: null,
+        };
+      }
+      
       const chat = state.chats[generatedUIId];
-
       if (chat) {
         chat.isStreaming = false;
         chat.streamingMessageId = null;

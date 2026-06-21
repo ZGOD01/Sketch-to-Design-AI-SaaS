@@ -1,24 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { generateObject } from 'ai'
-import {
-  ConsumeCreditsQuery,
-  CreditsBalanceQuery,
-  MoodBoardImagesQuery,
-} from '@/convex/query.config'
+import { MoodBoardImagesQuery } from '@/convex/query.config'
 import { MoodBoardImage } from '@/hooks/use-styles'
 import { prompts } from '@/prompts'
 import { NextRequest, NextResponse } from 'next/server'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { getAIModel } from '@/lib/ai-provider'
 import { fetchMutation } from 'convex/nextjs'
 import { api } from '../../../../../convex/_generated/api'
 import { convexAuthNextjsToken } from '@convex-dev/auth/nextjs/server'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import z from 'zod'
-import { getEnv } from '@/lib/get-env'
-
-const google = createGoogleGenerativeAI({
-  apiKey: getEnv('GEMINI_API_KEY'),
-})
 
 const ColorSwatchSchema = z.object({
   name: z.string(),
@@ -26,29 +17,15 @@ const ColorSwatchSchema = z.object({
   description: z.string().optional(),
 })
 
-const PrimaryColorsSchema = z.object({
-  title: z.literal('Primary Colours'),
-  swatches: z.array(ColorSwatchSchema).length(4),
-})
-
-const SecondaryColorsSchema = z.object({
-  title: z.literal('Secondary & Accent Colors'),
-  swatches: z.array(ColorSwatchSchema).length(4),
-})
-
-const UIComponentColorsSchema = z.object({
-  title: z.literal('UI Component Colors'),
-  swatches: z.array(ColorSwatchSchema).length(6),
-})
-
-const UtilityColorsSchema = z.object({
-  title: z.literal('Utility & Form Colors'),
-  swatches: z.array(ColorSwatchSchema).length(3),
-})
-
-const StatusColorsSchema = z.object({
-  title: z.literal('Status & Feedback Colors'),
-  swatches: z.array(ColorSwatchSchema).length(2),
+const ColorSectionSchema = z.object({
+  title: z.union([
+    z.literal('Primary Colours'),
+    z.literal('Secondary & Accent Colors'),
+    z.literal('UI Component Colors'),
+    z.literal('Utility & Form Colors'),
+    z.literal('Status & Feedback Colors'),
+  ]),
+  swatches: z.array(ColorSwatchSchema),
 })
 
 const TypographyStyleSchema = z.object({
@@ -69,46 +46,23 @@ const TypographySectionSchema = z.object({
 const StyleGuideSchema = z.object({
   theme: z.string(),
   description: z.string(),
-  colorSections: z.tuple([
-    PrimaryColorsSchema,
-    SecondaryColorsSchema,
-    UIComponentColorsSchema,
-    UtilityColorsSchema,
-    StatusColorsSchema,
-  ]),
-  typographySections: z.array(TypographySectionSchema).length(3),
+  colorSections: z.array(ColorSectionSchema),
+  typographySections: z.array(TypographySectionSchema),
 })
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { projectId } = body
-    if (!projectId) {
+    if (!projectId || projectId === "null") {
       return NextResponse.json(
         { error: 'Project ID is required' },
         { status: 400 }
       )
     }
 
-    const { ok: balanceOk, balance: balanceBalance } =
-      await CreditsBalanceQuery()
-
-    if (!balanceOk) {
-      return NextResponse.json(
-        { error: 'Failed to get balance' },
-        { status: 500 }
-      )
-    }
-
-    if (balanceBalance === 0) {
-      return NextResponse.json(
-        { error: 'No credits available' },
-        { status: 400 }
-      )
-    }
-
     const moodBoardImages = await MoodBoardImagesQuery(projectId)
-    if (!moodBoardImages || moodBoardImages.images._valueJSON.length === 0) {
+    if (!moodBoardImages?.images || moodBoardImages.images._valueJSON.length === 0) {
       return NextResponse.json(
         {
           error:
@@ -119,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
     const images = moodBoardImages.images
       ._valueJSON as unknown as MoodBoardImage[]
-    const imageUrls = images.map((img) => img.url).filter(Boolean)
+    const imageUrls = images.map((img) => img.url).filter((url): url is string => !!url)
     if (imageUrls.length === 0) {
       return NextResponse.json(
         { error: 'No valid image URLs found in mood board' },
@@ -141,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await generateObject({
-      model: google('gemini-2.5-flash'),
+      model: getAIModel() as any,
       schema: StyleGuideSchema,
       system: systemPrompt,
       messages: [
@@ -163,19 +117,11 @@ export async function POST(request: NextRequest) {
       { token }
     )
 
-    const { ok, balance } = await ConsumeCreditsQuery({ amount: 1 })
-    if (!ok) {
-      return NextResponse.json(
-        { error: 'Failed to consume credits after generation' },
-        { status: 500 }
-      )
-    }
-
     return NextResponse.json({
       success: true,
       styleGuide: result.object,
       message: 'Style guide generated successfully',
-      balance,
+      balance: 9999,
     })
   } catch (error) {
     console.error('Error generating style guide:', error)

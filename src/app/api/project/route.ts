@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inngest } from "@/inngest/client";
+import { UpdateProjectSketchesMutation } from "@/convex/query.config";
 
 interface UpdateProjectRequest {
   projectId: string;
@@ -28,16 +28,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Emit Inngest event for project autosave
-    const eventResult = await inngest.send({
-      name: "project/autosave.requested",
-      data: { projectId, userId, shapesData, viewportData },
+    // Call Convex mutation directly to save sketches synchronously and reliably
+    await UpdateProjectSketchesMutation({
+      projectId,
+      sketchesData: shapesData,
+      viewportData,
     });
 
     return NextResponse.json({
       success: true,
-      message: "Project autosave initiated",
-      eventId: eventResult.ids[0],
+      message: "Project autosaved successfully",
     });
   } catch (error) {
     return NextResponse.json(

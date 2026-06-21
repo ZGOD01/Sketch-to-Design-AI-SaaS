@@ -126,6 +126,7 @@ interface ShapesState {
   shapes: EntityState<Shape, string>;
   selected: SelectionMap;
   frameCounter: number;
+  lastLoadedProjectId?: string; // Track which project was last loaded
 }
 
 const initialState: ShapesState = {
@@ -133,6 +134,7 @@ const initialState: ShapesState = {
   shapes: shapesAdapter.getInitialState(),
   selected: {},
   frameCounter: 0,
+  lastLoadedProjectId: undefined,
 };
 
 const DEFAULTS = { stroke: "#ffff", strokeWidth: 2 as const };
@@ -428,6 +430,7 @@ const shapesSlice = createSlice({
         tool: Tool;
         selected: SelectionMap;
         frameCounter: number;
+        projectId: string;
       }>
     ) {
       // Load project data into the shapes state
@@ -435,6 +438,7 @@ const shapesSlice = createSlice({
       state.tool = action.payload.tool;
       state.selected = action.payload.selected;
       state.frameCounter = action.payload.frameCounter;
+      state.lastLoadedProjectId = action.payload.projectId;
     },
   },
 });

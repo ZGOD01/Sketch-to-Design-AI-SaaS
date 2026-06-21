@@ -21,7 +21,10 @@ export const ProjectProvider = ({
       const projectData = initialProject._valueJSON;
 
       // Load the sketches data into the shapes Redux state
-      dispatch(loadProject(projectData.sketchesData));
+      dispatch(loadProject({
+        ...projectData.sketchesData,
+        projectId: projectData._id
+      }));
 
       // Restore viewport position if available
       if (projectData.viewportData) {

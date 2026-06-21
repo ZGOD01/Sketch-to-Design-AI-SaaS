@@ -25,7 +25,9 @@ export const Autosave = () => {
   const isReady = Boolean(projectId && user?.id);
 
   useEffect(() => {
-    if (!isReady) return;
+    const isProjectLoaded = shapesState.lastLoadedProjectId === projectId;
+    
+    if (!isReady || !isProjectLoaded || projectId === "null") return;
 
     const stateString = JSON.stringify({
       shapes: shapesState,

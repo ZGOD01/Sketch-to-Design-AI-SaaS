@@ -83,7 +83,7 @@ export const ToolBarShapes = () => {
 
   return (
     <div className="col-span-1 flex justify-center items-center">
-      <div className="flex items-center backdrop-blur-xl backdrop-[url('#displacementFilter')] bg-white/[0.08] border border-white/[0.12] gap-2 rounded-full p-3 saturate-150">
+      <div className="flex items-center backdrop-blur-xl backdrop-[url('#displacementFilter')] bg-white/[0.08] border border-white/[0.12] gap-2 rounded-full p-3 saturate-150 pointer-events-auto">
         <Button
           variant={"ghost"}
           size="lg"

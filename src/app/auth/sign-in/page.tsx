@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, Code2 } from "lucide-react";
 
 const Page = () => {
   const { signInForm, handleSignIn, isLoading } = useAuth();
@@ -22,8 +22,18 @@ const Page = () => {
         onSubmit={handleSubmit(handleSignIn)}
         className="bg-muted m-auto h-fit w-full max-w-sm overflow-hidden rounded-[calc(var(--radius)+.125rem)] border shadow-md shadow-zinc-950/5 dark:[--color-muted:var(--color-zinc-900)]">
         <div className="bg-card -m-px rounded-[calc(var(--radius)+.125rem)] border p-8 pb-6">
-          <h1 className="mb-1 mt-4 text-xl font-semibold">Sign In to S2C</h1>
-          <p className="text-sm">Welcome back! Sign in to continue</p>
+          <div className="flex flex-col items-center mb-8">
+            <Link href="/" className="flex items-center gap-2 mb-6 hover:opacity-80 transition-opacity">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500">
+                <Code2 className="h-4 w-4 text-white" strokeWidth={2} />
+              </div>
+              <span className="text-lg font-bold tracking-tight">
+                Sketch to Design
+              </span>
+            </Link>
+            <h1 className="text-xl font-semibold">Sign In to Sketch to Design</h1>
+            <p className="text-sm">Welcome back! Sign in to continue</p>
+          </div>
 
           <div className="mt-6 space-y-6">
             <div className="space-y-2">
@@ -43,18 +53,11 @@ const Page = () => {
               )}
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-sm">
                   Password
                 </Label>
-                <Button asChild variant="link" size="sm">
-                  <Link
-                    href="#"
-                    className="link intent-info variant-ghost text-sm">
-                    Forgot your Password ?
-                  </Link>
-                </Button>
               </div>
               <Input
                 type="password"

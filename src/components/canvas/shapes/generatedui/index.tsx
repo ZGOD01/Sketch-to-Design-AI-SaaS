@@ -194,15 +194,7 @@ export const GeneratedUI = ({
             <Download size={12} />
             Export
           </LiquidGlassButton>
-          <LiquidGlassButton
-            size="sm"
-            variant="subtle"
-            onClick={handleGenerateWorkflow}
-            style={{ pointerEvents: "auto" }}
-          >
-            <Workflow size={12} />
-            Generate Workflow
-          </LiquidGlassButton>
+          
           <LiquidGlassButton
             size="sm"
             variant="subtle"
@@ -490,7 +482,7 @@ export const GeneratedUI = ({
                 }}
               >
                 <RefreshCw size={12} />
-                Click "Generate Design" on the frame to retry
+                Click &quot;Generate Design&quot; on the frame to retry
               </div>
             </div>
           )}
@@ -546,7 +538,7 @@ export const GeneratedUI = ({
                 }}
               >
                 <RefreshCw size={12} />
-                Click "Generate Design" on the frame to retry
+                Click &quot;Generate Design&quot; on the frame to retry
               </div>
             </div>
           )}

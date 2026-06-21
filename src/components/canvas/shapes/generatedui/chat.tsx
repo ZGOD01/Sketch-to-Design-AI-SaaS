@@ -33,12 +33,30 @@ export const ChatWindow = ({
 
   if (!isOpen) return null;
 
+  // Stop all keyboard events from bubbling to the canvas document-level handlers
+  const stopKeyboardPropagation = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+  };
+
+  // Stop pointer events from reaching the canvas
+  const stopPointerPropagation = (e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div
       className={cn(
-        "fixed right-5 top-1/2 transform -translate-y-1/2 w-96 h-[600px] backdrop-blur-xl bg-white/[0.08] border-white/[0.12] border rounded-lg z-50 transition-all duration-300 flex flex-col",
+        "fixed right-5 top-[90px] w-96 h-[calc(100vh-220px)] max-h-[600px] backdrop-blur-xl bg-white/[0.08] border-white/[0.12] border rounded-lg z-[60] transition-all duration-300 flex flex-col",
         isOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-      )}>
+      )}
+      onPointerDown={stopPointerPropagation}
+      onPointerMove={stopPointerPropagation}
+      onPointerUp={stopPointerPropagation}
+      onClick={stopPointerPropagation}
+      onMouseDown={stopPointerPropagation}
+      onKeyDown={stopKeyboardPropagation}
+      onKeyUp={stopKeyboardPropagation}
+    >
       <div className="flex items-center justify-between p-4 border-b border-white/[0.12]">
         <div className="flex items-center gap-2">
           <RefreshCw className="w-5 h-5 text-white/80" />
@@ -114,13 +132,19 @@ export const ChatWindow = ({
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Describe how you want to redesign this UI..."
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                handleKeyPress(e);
+              }}
+              placeholder="Type your redesign request and press Enter"
               disabled={chatState?.isStreaming}
               className="flex-1 bg-white/5 border-white/20 text-white placeholder:text-white/50"
             />
             <Button
-              onClick={handleSendMessage}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSendMessage();
+              }}
               disabled={!inputValue.trim() || chatState?.isStreaming}
               size="sm"
               className="bg-blue-500 hover:bg-blue-600 text-white">

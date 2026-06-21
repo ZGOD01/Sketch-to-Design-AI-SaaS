@@ -13,32 +13,35 @@ export const createProject = mutation({
   handler: async (ctx, { userId, name, sketchesData, thumbnail }) => {
     console.log("🚀 [Convex] Creating project for user:", userId);
 
-    // Get next project number for auto-naming
-    const projectNumber = await getNextProjectNumber(ctx, userId);
-    const projectName = name || `Project ${projectNumber}`;
-
-    // Create the project
+    // Create the project with a temporary name and number
+    const tempName = name || "Project Temp";
     const projectId = await ctx.db.insert("projects", {
       userId,
-      name: projectName,
+      name: tempName,
       sketchesData,
       thumbnail,
-      projectNumber,
+      projectNumber: 0,
       lastModified: Date.now(),
       createdAt: Date.now(),
       isPublic: false,
     });
 
-    console.log("✅ [Convex] Project created:", {
+    // Reindex all user's projects to ensure they are sequential and aligned
+    await reindexUserProjects(ctx, userId);
+
+    // Get the updated project details
+    const updated = await ctx.db.get(projectId);
+
+    console.log("✅ [Convex] Project created and indexed:", {
       projectId,
-      name: projectName,
-      projectNumber,
+      name: updated?.name || tempName,
+      projectNumber: updated?.projectNumber || 1,
     });
 
     return {
       projectId,
-      name: projectName,
-      projectNumber,
+      name: updated?.name || tempName,
+      projectNumber: updated?.projectNumber || 1,
     };
   },
 });
@@ -180,33 +183,80 @@ export const deleteProject = mutation({
     await ctx.db.delete(projectId);
     console.log("🗑️ [Convex] Project deleted:", projectId);
 
+    // Reindex remaining projects to keep them sequential
+    await reindexUserProjects(ctx, userId);
+
     return { success: true };
   },
 });
 
-async function getNextProjectNumber(ctx: any, userId: string): Promise<number> {
-  // Get or create project counter for this user
-  const counter = await ctx.db
-    .query("project_counters")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .withIndex("by_userId", (q: any) => q.eq("userId", userId))
-    .first();
+export const renameProject = mutation({
+  args: { projectId: v.id("projects"), name: v.string() },
+  handler: async (ctx, { projectId, name }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-  if (!counter) {
-    // Create new counter starting at 1
-    await ctx.db.insert("project_counters", {
-      userId,
-      nextProjectNumber: 2, // Next will be 2
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Project not found");
+
+    if (project.userId !== userId) {
+      throw new Error("Access denied");
+    }
+
+    await ctx.db.patch(projectId, {
+      name,
+      lastModified: Date.now(),
     });
-    return 1;
+    console.log("✏️ [Convex] Project renamed:", projectId, "to", name);
+
+    return { success: true };
+  },
+});
+
+export const getProjectInfo = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, { projectId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const project = await ctx.db.get(projectId);
+    if (!project) return null;
+
+    // Check ownership or public access
+    if (project.userId !== userId && !project.isPublic) {
+      return null;
+    }
+
+    return {
+      _id: project._id,
+      name: project.name,
+      projectNumber: project.projectNumber,
+    };
+  },
+});
+
+async function reindexUserProjects(ctx: any, userId: string): Promise<void> {
+  const allProjects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  // Sort by createdAt ascending to preserve order
+  const sorted = [...allProjects].sort((a, b) => a.createdAt - b.createdAt);
+
+  for (let i = 0; i < sorted.length; i++) {
+    const project = sorted[i];
+    const newNumber = i + 1;
+
+    // Check if name is the default auto-generated "Project X"
+    const isDefaultName = !project.name || /^Project \d+$/.test(project.name) || project.name === "Project Temp";
+    const newName = isDefaultName ? `Project ${newNumber}` : project.name;
+
+    if (project.projectNumber !== newNumber || project.name !== newName) {
+      await ctx.db.patch(project._id, {
+        projectNumber: newNumber,
+        name: newName,
+      });
+    }
   }
-
-  const projectNumber = counter.nextProjectNumber;
-
-  // Increment counter for next time
-  await ctx.db.patch(counter._id, {
-    nextProjectNumber: projectNumber + 1,
-  });
-
-  return projectNumber;
 }

@@ -26,7 +26,8 @@ const Page = async ({ searchParams }: Props) => {
 
   const existingMoodBoardImages = await MoodBoardImagesQuery(projectId);
   const guideImages = existingMoodBoardImages.images
-    ._valueJSON as unknown as MoodBoardImage[];
+    ?._valueJSON as unknown as MoodBoardImage[]
+    || [];
 
   return (
     <div>
