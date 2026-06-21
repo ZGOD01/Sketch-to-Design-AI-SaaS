@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { generateText } from 'ai'
 import { getAIModel } from '@/lib/ai-provider'
 
@@ -7,7 +7,7 @@ import { getAIModel } from '@/lib/ai-provider'
  * Quick smoke-test that AI provider works.
  * Returns { ok: true, preview: "first 200 chars of HTML" } or { ok: false, error: "..." }
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // 1x1 white PNG in base64 – minimal valid image
     const tiny1x1png =

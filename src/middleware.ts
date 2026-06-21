@@ -6,10 +6,7 @@ import {
 import {
   isBypassRoutes,
   isProtectedRoutes,
-  isPublicRoutes,
 } from "./lib/permissions";
-
-const PublicMatcher = createRouteMatcher(isPublicRoutes);
 const ProtectedMatcher = createRouteMatcher(isProtectedRoutes);
 const BypassMatcher = createRouteMatcher(isBypassRoutes);
 

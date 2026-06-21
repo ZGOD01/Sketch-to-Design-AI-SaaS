@@ -1,7 +1,7 @@
 "use client";
 import { GeneratedUIShape, GenerationStage } from "@/redux/slice/shapes";
 import { useUpdateContainer } from "@/hooks/use-styles";
-import { MessageCircle, Workflow, Download, Sparkles, Zap, Brain, Upload, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { MessageCircle, Download, Sparkles, Zap, Brain, Upload, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { LiquidGlassButton } from "@/components/buttons/liquid-glass";
 import { useEffect, useRef, useState } from "react";
 
@@ -144,7 +144,6 @@ export const GeneratedUI = ({
   const meta = STAGE_META[stage] ?? STAGE_META["generating"];
 
   const handleToggleChat = () => toggleChat(shape.id);
-  const handleGenerateWorkflow = () => generateWorkflow(shape.id);
   const handleExportDesign = () => {
     if (!shape.uiSpecData) return;
     exportDesign(shape.id, containerRef.current);
