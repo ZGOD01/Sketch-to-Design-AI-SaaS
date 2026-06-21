@@ -60,7 +60,7 @@
     "html-react-parser": "^5.2.6",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
-    "inngest": "^3.40.1",
+    "inngest": "3.54.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.539.0",
     "motion": "^12.23.12",
@@ -96,5 +96,8 @@
   },
   "engines": {
     "node": "20.x"
+  },
+  "resolutions": {
+    "inngest": "3.54.0"
   }
 }
